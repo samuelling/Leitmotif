@@ -13,6 +13,15 @@ enum LookupKind: String {
         case .tracker: return "trackers"
         }
     }
+
+    /// The same three voices, named for what they mean in gait mode.
+    var gaitLabel: String {
+        switch self {
+        case .app: return "bursts"
+        case .system: return "bulk (streams, downloads)"
+        case .tracker: return "chatter"
+        }
+    }
 }
 
 /// One note of a leitmotif: a scale step (relative to the motif's first note, which is
@@ -31,6 +40,8 @@ struct Lookup: Identifiable {
     let kind: LookupKind
     let motif: [MotifNote]
     let pan: Float
+    /// Gait mode: a one-line description of the burst (size, length, packet size).
+    var detail: String? = nil
     var fate: Fate = .waiting
 
     enum Fate { case waiting, sung, whispered, merged, dropped }
@@ -46,6 +57,40 @@ enum Score {
         let pan = Float(Double((h >> 40) & 0xFF) / 255 - 0.5) * (kind == .tracker ? 1.4 : 0.6)
         return Lookup(id: e.seq, time: Date(timeIntervalSince1970: e.t), name: e.name,
                     domain: domain, kind: kind, motif: motif(domain: domain, name: e.name), pan: pan)
+    }
+
+    /// Gait mode: a burst, read as the last letter of a three-letter word ("↑s ↓M ↓L").
+    /// The word seeds the motif, so a recurring traffic pattern always gets the same tune.
+    ///  • chatter (small bursts of small packets) → whispers
+    ///  • bulk (large, mostly received, full-size packets) → the low, soft register
+    ///  • everything else → the soloist's middle register
+    static func gait(_ b: Burst, word: [GaitSymbol], id: Int) -> Lookup {
+        let text = word.map(\.text).joined(separator: " ")
+        let key = "gait " + text
+        let last = word.last ?? GaitSymbol(b)
+        let kind: LookupKind
+        if last.size == 0 && b.meanPacket < 300 {
+            kind = .tracker
+        } else if last.size == 2 && !last.up && b.meanPacket > 900 {
+            kind = .system
+        } else {
+            kind = .app
+        }
+        let h = fnv(key)
+        let pan = Float(Double((h >> 40) & 0xFF) / 255 - 0.5) * (kind == .tracker ? 1.4 : 0.6)
+        var detail = "\(formatBytes(b.bytes)) \(last.up ? "sent" : "received")"
+        detail += String(format: " · %.1f s · %ld B/packet", b.duration, Int(b.meanPacket))
+        if b.onCell { detail += " · cellular" }
+        var l = Lookup(id: id, time: Date(), name: text, domain: text, kind: kind,
+                       motif: motif(domain: key, name: key), pan: pan)
+        l.detail = detail
+        return l
+    }
+
+    static func formatBytes(_ x: Double) -> String {
+        if x >= 1_000_000 { return String(format: "%.1f MB", x / 1_000_000) }
+        if x >= 1_000 { return String(format: "%.0f KB", x / 1_000) }
+        return "\(Int(x)) B"
     }
 
     /// The motif: 2–4 notes drawn from the domain's hash, with a small family resemblance

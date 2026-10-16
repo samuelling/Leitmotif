@@ -33,6 +33,23 @@ The soloist plays a dusty upright piano, the one that used to be Aether's option
 
 The tracker list is a small hand-picked set plus a few name patterns like `analytics.` and `telemetry.`. It's enough to hear the pattern, but it isn't a blocklist.
 
+## Gait mode (no VPN)
+
+Settings › Listen to › **Gait** switches the tunnel off and listens only to the phone's own byte and packet counters, the water meter, about 15 times a second. Without names, it recognizes habits the way you'd recognize someone in the hallway by their footsteps:
+
+- **Bursts.** Traffic is cut into bursts: activity bounded by about 200 ms of quiet, or cut at 4 s so a long stream becomes a run of large bursts.
+- **Letters.** Each burst becomes one of six letters, by direction (↑ mostly sent, ↓ mostly received) and size (**s** under 8 KB, **M**, **L** from 250 KB).
+- **Words.** The last three letters form a word ("↓L ↓L ↓M"), and the word seeds the same motif generator the domain names use. A recurring pattern gets the same tune: a video stream's big downloads, a chat's small back-and-forth, an infinite scroll's medium bursts.
+- **Voices:**
+  - *Chatter* (small bursts of small packets) whispers.
+  - *Bulk* (large received bursts of full-size packets) sinks to the low, soft register.
+  - Everything else is sung in the middle.
+- **Ignored on purpose:** peer-to-peer links (AirDrop, AirPlay and the duo's own messages), so Leitmotif doesn't sing about itself.
+
+Gait is coarser than names. The counters cover the whole phone, so two apps talking at once blur into one gait, and background syncing is always in the mix. It needs no VPN, though, which is what an App Store build would ship with.
+
+**Tuning it.** Settings › Traffic log › **Record traffic log** writes the raw counters to a CSV: bytes and packets in and out for Wi-Fi, cellular and peer-to-peer, about 15 times a second. Find it in Files › On My iPhone › Leitmotif, or use the share button. It holds no names and no content. Use your phone normally for an hour, then use the log to set the burst threshold (`GaitSensor.activeBytes`) and the size bins (`GaitSymbol.smallBelow` / `largeFrom`) from real distributions.
+
 ## Playing with the duo
 
 Aether and Bellweathered lead and Leitmotif follows. It listens on the same nearby link the duo already uses and never sends anything:
@@ -77,6 +94,7 @@ The tunnel is a Network Extension, so this needs the paid Apple Developer Progra
 - `Shared/Wire.swift`: the messages between app and tunnel, plus the resolver choices.
 - `Leitmotif/Tunnel.swift`: installs, starts and stops the VPN profile, and polls the tunnel about four times a second.
 - `Leitmotif/Meter.swift`: Wi-Fi and cellular byte counters, giving smoothed up and down rates.
+- `Leitmotif/Gait.swift`: the interface counters by link type, the burst detector, the six-letter gait alphabet, and the traffic log.
 - `Leitmotif/Score.swift`: domain grouping, the app/system/tracker split, and motifs from a stable hash (FNV-1a plus SplitMix64).
 - `Leitmotif/LeitmotifModel.swift`: the conductor. Ingests lookups, manages the backlog, schedules motifs and whispers onto the grid, and follows the duo.
 - `Leitmotif/Piano.swift`: the dusty upright, synthesized once at launch (moved here from Aether).

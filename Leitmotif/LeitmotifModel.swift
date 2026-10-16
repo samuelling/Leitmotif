@@ -36,11 +36,28 @@ final class LeitmotifModel: ObservableObject {
     @Published var whisperTrackers: Bool { didSet { save("whisperTrackers", whisperTrackers) } }
     @Published var showNames: Bool { didSet { save("showNames", showNames) } }
     @Published var upstream: WireUpstream { didSet { upstreamChanged(oldValue) } }
+    /// What Leitmotif listens to: the names the phone looks up (needs the DNS tunnel), or
+    /// only the gait of its traffic (byte and packet counters; no tunnel, no VPN).
+    @Published var source: Source { didSet { sourceChanged(oldValue) } }
+    /// Write every raw counter sample to a CSV (Files › On My iPhone › Leitmotif).
+    @Published var recording = false { didSet { recordingChanged() } }
+    @Published private(set) var logURL: URL?
+    @Published private(set) var bursts = 0
+
+    enum Source: String, CaseIterable, Identifiable {
+        case names, gait
+        var id: String { rawValue }
+        var label: String { self == .names ? "Names" : "Gait" }
+    }
 
     let tunnel = Tunnel()
     let duo = DuoLink(role: "leitmotif")
     private let engine = MotifEngine()
     private var meter = Meter()
+    private let gait = GaitSensor()
+    private var gaitWord: [GaitSymbol] = []
+    private var gaitSeq = 1_000_000
+    private var trafficLog: TrafficLog?
     private var timer: Timer?
     private var tickCount = 0
     private var lastTunnelStatus: NEVPNStatus = .invalid
@@ -71,8 +88,11 @@ final class LeitmotifModel: ObservableObject {
         whisperTrackers = d.object(forKey: "whisperTrackers") as? Bool ?? true
         showNames = d.object(forKey: "showNames") as? Bool ?? true
         upstream = WireUpstream(rawValue: d.string(forKey: "upstream") ?? "") ?? .cloudflare
+        source = Source(rawValue: d.string(forKey: "source") ?? "") ?? .names
 
         tunnel.onEvents = { [weak self] events in MainActor.assumeIsolated { self?.ingest(events) } }
+        gait.onBurst = { [weak self] b in MainActor.assumeIsolated { self?.heard(b) } }
+        gait.onSample = { [weak self] t, w, m, p in MainActor.assumeIsolated { self?.trafficLog?.write(t, w, m, p) } }
         duo.onState = { [weak self] s in MainActor.assumeIsolated { self?.receiveDuo(s) } }
         duo.onLost = { [weak self] in MainActor.assumeIsolated { self?.refreshHarmonyLine() } }
         duo.start()
@@ -87,8 +107,8 @@ final class LeitmotifModel: ObservableObject {
 
     // MARK: Transport
 
-    /// Listen = open the tunnel and start singing. Stop = both off, and the phone's DNS
-    /// goes straight back to normal.
+    /// Listen = start singing (and, in Names mode, open the tunnel). Stop = all off, and the
+    /// phone's DNS goes straight back to normal.
     func togglePlay() {
         if isPlaying {
             engine.stop()
@@ -99,7 +119,9 @@ final class LeitmotifModel: ObservableObject {
                 try engine.start()
                 isPlaying = true
                 leadFree = engine.params.nowBeat
-                if !tunnel.isOn {
+                gait.reset()
+                gaitWord.removeAll()
+                if source == .names && !tunnel.isOn {
                     let u = upstream
                     Task { await tunnel.start(upstream: u) }
                 }
@@ -125,7 +147,9 @@ final class LeitmotifModel: ObservableObject {
         tickCount += 1
         let now = ProcessInfo.processInfo.systemUptime
 
-        if tickCount % 8 == 0 { tunnel.poll() }
+        if tickCount % 8 == 0 && source == .names { tunnel.poll() }
+        // ~15 samples a second for the gait (and the traffic log, if it's recording)
+        if tickCount % 2 == 0 && ((isPlaying && source == .gait) || recording) { gait.sample(now: now) }
         if tickCount % 15 == 0 {
             meter.sample(now: now)
             down = meter.down
@@ -159,8 +183,22 @@ final class LeitmotifModel: ObservableObject {
     // MARK: Ingest
 
     private func ingest(_ events: [WireEvent]) {
-        for e in events {
-            var t = Score.lookup(e)
+        guard source == .names else { return }
+        accept(events.map(Score.lookup))
+    }
+
+    /// A finished burst of traffic: the newest letter of the gait word.
+    private func heard(_ b: Burst) {
+        guard isPlaying, source == .gait else { return }
+        gaitWord.append(GaitSymbol(b))
+        if gaitWord.count > 3 { gaitWord.removeFirst(gaitWord.count - 3) }
+        gaitSeq += 1
+        bursts += 1
+        accept([Score.gait(b, word: gaitWord, id: gaitSeq)])
+    }
+
+    private func accept(_ incoming: [Lookup]) {
+        for var t in incoming {
             heardTimes.append(t.time)
             switch t.kind {
             case .tracker:
@@ -309,7 +347,42 @@ final class LeitmotifModel: ObservableObject {
 
     // MARK: Status and settings
 
+    var eventsName: String { source == .names ? "lookups" : "bursts" }
+    var totalHeard: Int { source == .names ? tunnel.queries : bursts }
+
+    private func sourceChanged(_ old: Source) {
+        UserDefaults.standard.set(source.rawValue, forKey: "source")
+        guard source != old else { return }
+        pending.removeAll()
+        whispers.removeAll()
+        gait.reset()
+        gaitWord.removeAll()
+        if source == .gait {
+            tunnel.stop()                       // the phone's DNS goes back to normal
+        } else if isPlaying && !tunnel.isOn {
+            let u = upstream
+            Task { await tunnel.start(upstream: u) }
+        }
+        updateStatus()
+    }
+
+    private func recordingChanged() {
+        if recording {
+            gait.reset()
+            trafficLog = TrafficLog(now: ProcessInfo.processInfo.systemUptime)
+            logURL = trafficLog?.url
+            if trafficLog == nil { recording = false }
+        } else {
+            trafficLog?.close()
+            trafficLog = nil
+        }
+    }
+
     private func updateStatus() {
+        if source == .gait {
+            status = isPlaying ? "Listening to the gait of your phone's traffic" : "Tap Listen to begin"
+            return
+        }
         switch tunnel.status {
         case .connected:
             status = isPlaying ? "Listening to your phone's lookups" : "Tunnel open, sound off"

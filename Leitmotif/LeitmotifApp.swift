@@ -79,8 +79,8 @@ struct LeitmotifView: View {
         HStack {
             stat(model.meterWorks ? rate(model.down) : "—", "down")
             stat(model.meterWorks ? rate(model.up) : "—", "up")
-            stat("\(model.perMinute)", "lookups/min")
-            stat("\(model.tunnel.queries)", "since start")
+            stat("\(model.perMinute)", "\(model.eventsName)/min")
+            stat("\(model.totalHeard)", "since start")
         }
     }
 
@@ -110,21 +110,29 @@ struct LeitmotifView: View {
         .tint(model.isPlaying ? Color.white.opacity(0.15) : Color(red: 0.85, green: 0.35, blue: 0.55))
     }
 
+    private var emptyText: String {
+        switch (model.source, model.isPlaying) {
+        case (.names, true): return "Waiting for your phone to look something up. Open another app."
+        case (.names, false): return "Every name your phone looks up will appear here, and be sung."
+        case (.gait, true): return "Waiting for a burst of traffic. Open another app."
+        case (.gait, false): return "Every burst of traffic will appear here as a three-letter word, and be sung."
+        }
+    }
+
     private var ledger: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 ForEach([LookupKind.app, .system, .tracker], id: \.self) { k in
                     HStack(spacing: 4) {
                         Circle().fill(k.color).frame(width: 7, height: 7)
-                        Text(k.label).font(.caption2).foregroundStyle(.secondary)
+                        Text(model.source == .gait ? k.gaitLabel : k.label)
+                            .font(.caption2).foregroundStyle(.secondary)
                     }
                 }
                 Spacer()
             }
             if model.lookups.isEmpty {
-                Text(model.isPlaying
-                     ? "Waiting for your phone to look something up. Open another app."
-                     : "Every name your phone looks up will appear here, and be sung.")
+                Text(emptyText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 24)
@@ -149,10 +157,15 @@ private struct LookupRow: View {
         HStack(spacing: 10) {
             Circle().fill(lookup.kind.color).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 1) {
-                Text(showName ? lookup.domain : hidden)
+                Text(showName || lookup.detail != nil ? lookup.domain : hidden)
                     .font(.system(.subheadline, design: .monospaced))
                     .lineLimit(1)
-                if showName && lookup.name != lookup.domain {
+                if let detail = lookup.detail {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else if showName && lookup.name != lookup.domain {
                     Text(lookup.name)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -257,6 +270,20 @@ struct LeitmotifSettings: View {
         NavigationStack {
             Form {
                 Section {
+                    Picker("Listen to", selection: $model.source) {
+                        Text("Names").tag(LeitmotifModel.Source.names)
+                        Text("Gait").tag(LeitmotifModel.Source.gait)
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Listen to")
+                } footer: {
+                    Text(model.source == .names
+                         ? "Names: every server name your phone looks up gets its own motif. Uses an on-device VPN that carries only those lookups."
+                         : "Gait: no VPN. Leitmotif reads only how much your phone sends and receives, and in what rhythm. Each burst becomes a letter (↑ sent, ↓ received; small, Medium, Large), and each three-letter word becomes a motif, so a habit (streaming, messaging, scrolling) gets a tune by its footsteps instead of its name.")
+                }
+
+                Section {
                     Toggle("Follow the duo", isOn: $model.followDuo)
                     DuoControls(duo: model.duo, partnerName: "Aether or Bellweathered")
                 } header: {
@@ -289,9 +316,24 @@ struct LeitmotifSettings: View {
                 }
 
                 Section {
+                    Toggle("Record traffic log", isOn: $model.recording)
+                    if let url = model.logURL {
+                        ShareLink(item: url) {
+                            Label(url.lastPathComponent, systemImage: "square.and.arrow.up")
+                                .font(.footnote)
+                        }
+                    }
+                } header: {
+                    Text("Traffic log")
+                } footer: {
+                    Text("Writes the raw counters (bytes and packets in and out, Wi-Fi, cellular and peer-to-peer, about 15 times a second) to a CSV in Files › On My iPhone › Leitmotif, for tuning the gait. No names, no content.")
+                }
+
+                Section {
                     Picker("Resolver", selection: $model.upstream) {
                         ForEach(WireUpstream.allCases) { Text($0.label).tag($0) }
                     }
+                    .disabled(model.source == .gait)
                 } header: {
                     Text("Lookups")
                 } footer: {

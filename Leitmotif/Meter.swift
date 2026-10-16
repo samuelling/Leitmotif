@@ -39,23 +39,9 @@ struct Meter {
         up += (tx - up) * ku
     }
 
-    /// Summed byte counters for Wi-Fi (en*) and cellular (pdp_ip*) links.
+    /// Summed byte counters for Wi-Fi and cellular links.
     private static func counters() -> (rx: UInt32, tx: UInt32)? {
-        var head: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&head) == 0, let first = head else { return nil }
-        defer { freeifaddrs(head) }
-        var rx: UInt32 = 0, tx: UInt32 = 0
-        var p: UnsafeMutablePointer<ifaddrs>? = first
-        while let ifa = p {
-            defer { p = ifa.pointee.ifa_next }
-            guard let addr = ifa.pointee.ifa_addr, addr.pointee.sa_family == UInt8(AF_LINK),
-                  let raw = ifa.pointee.ifa_data else { continue }
-            let name = String(cString: ifa.pointee.ifa_name)
-            guard name.hasPrefix("en") || name.hasPrefix("pdp_ip") else { continue }
-            let d = raw.assumingMemoryBound(to: if_data.self).pointee
-            rx &+= d.ifi_ibytes
-            tx &+= d.ifi_obytes
-        }
-        return (rx, tx)
+        guard let c = Counters.read() else { return nil }
+        return (c.wifi.rxB &+ c.cell.rxB, c.wifi.txB &+ c.cell.txB)
     }
 }
