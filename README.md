@@ -19,17 +19,17 @@ Names live only in memory, never on disk, and nothing is sent anywhere except th
 |---|---|
 | Each service's domain (`cdninstagram.com`), hashed | Its leitmotif: 2 to 4 notes, starting on a chord tone, with a fixed contour and rhythm. The same in every session and on every phone |
 | Subdomains (`api.`, `cdn.`, `www.`) | Family resemblance: same motif, last note varied |
-| Apps and the web | Sung by the soloist in the middle register |
+| Apps and the web | Played by the soloist in the middle register |
 | Apple and system chatter (`apple.com`, `icloud.com`) | The same voice, an octave down and softer: the phone murmuring to itself |
-| Trackers, analytics and ads | Tiny high "whisper" blips on the off-sixteenths, panned wide |
+| Trackers, analytics and ads | Pianissimo staccato "whispers" two octaves up, on the off-sixteenths, panned wide |
 | A burst of lookups (opening an app fires 20 to 50) | A backlog: the soloist talks faster and says less, two notes per name, and the oldest names get dropped |
 | The same service again while it's still queued | Merged, not repeated |
-| Download rate | Loudness, brightness and vibrato depth |
-| Upload rate | Breath: the phone exhaling |
-| Heavy traffic with no new names (a stream, a download) | A low hum on the chord root every couple of bars |
+| Download rate | How hard the keys are struck, and how far the felt opens (brightness) |
+| Upload rate | Tape dust: hiss and crackle rise as the phone sends |
+| Heavy traffic with no new names (a stream, a download) | A low, held chord root every couple of bars |
 | Silence | Rests |
 
-The soloist is one monophonic, legato voice: a sine with a little triangle through a soft lowpass, portamento between notes, delayed vibrato and breath noise. It sits in a dotted-eighth echo and a hall. Notes are scheduled on a beat clock owned by the audio thread, so they land on the eighth-note grid even while the app is in the background.
+The soloist plays a dusty upright piano, the one that used to be Aether's optional arpeggio. It's synthesized from scratch at launch, not recorded: stiff-string overtones, two slightly detuned strings per note, a felt hammer and thump, and a two-stage decay. Each melody note is held for its written length and then damped, like a pianist playing legato, so phrases ring into each other without blurring. It all sits on tape: slow wow and flutter, a bed of hiss and the odd crackle, a dotted-eighth echo and a medium hall. Notes are scheduled on a beat clock owned by the audio thread, so they land on the eighth-note grid even while the app is in the background.
 
 The tracker list is a small hand-picked set plus a few name patterns like `analytics.` and `telemetry.`. It's enough to hear the pattern, but it isn't a blocklist.
 
@@ -79,7 +79,8 @@ The tunnel is a Network Extension, so this needs the paid Apple Developer Progra
 - `Leitmotif/Meter.swift`: Wi-Fi and cellular byte counters, giving smoothed up and down rates.
 - `Leitmotif/Score.swift`: domain grouping, the app/system/tracker split, and motifs from a stable hash (FNV-1a plus SplitMix64).
 - `Leitmotif/LeitmotifModel.swift`: the conductor. Ingests lookups, manages the backlog, schedules motifs and whispers onto the grid, and follows the duo.
-- `Leitmotif/MotifDSP.swift`: the soloist and whisper voices, and the lock-free note rings on the audio thread's beat clock.
+- `Leitmotif/Piano.swift`: the dusty upright, synthesized once at launch (moved here from Aether).
+- `Leitmotif/MotifDSP.swift`: plays the piano. Melody and whisper voices with dampers, tape wow, hiss and crackle, the brightness filter, and the lock-free note rings on the audio thread's beat clock.
 - `Leitmotif/MotifEngine.swift`: the AVAudioEngine graph (delay → hall). It mixes with other audio and keeps running in the background.
 - `Leitmotif/LeitmotifApp.swift`: main screen (voice orb, meters, the ledger of lookups with each motif drawn as a tiny piano roll) and settings.
 - `Duo/`: the shared duo link, identical to the Aether repo's `Shared/` copies.

@@ -7,7 +7,7 @@ import NetworkExtension
 ///  • the address book: every name the phone looks up (who it's talking to), heard by the
 ///    LeitmotifTunnel extension, becomes a leitmotif, so each service always sounds like itself;
 ///  • the water meter: total bytes flowing in and out (how hard it's talking), which sets
-///    how loud, bright and breathy the soloist sings.
+///    how hard and bright the piano is played, and how much tape dust rides along.
 ///
 /// The duo leads; Leitmotif follows. It takes key and scale from Bellweathered (or Aether),
 /// tempo and the current chord from Aether, and remembers them when it loses touch (iOS cuts

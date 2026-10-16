@@ -15,6 +15,7 @@ final class MotifEngine {
     private let reverb = AVAudioUnitReverb()
     private var source: AVAudioSourceNode?
     private var dsp: MotifDSP?
+    private var piano: PianoSampler?
     private var wantsRunning = false
     private var stopToken = 0
     private var observers: [NSObjectProtocol] = []
@@ -28,9 +29,19 @@ final class MotifEngine {
         delay.feedback = 32
         delay.lowPassCutoff = 2600
         delay.wetDryMix = 18
-        reverb.loadFactoryPreset(.largeHall)
-        reverb.wetDryMix = 34
+        reverb.loadFactoryPreset(.mediumHall)
+        reverb.wetDryMix = 30
         [delay, reverb].forEach { engine.attach($0) }
+
+        // Synthesize the piano off the main thread (a fraction of a second of work).
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let s = PianoSampler()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.piano = s
+                self.dsp?.install(s)
+            }
+        }
 
         let nc = NotificationCenter.default
         observers.append(nc.addObserver(forName: AVAudioSession.interruptionNotification,
@@ -97,6 +108,7 @@ final class MotifEngine {
         if sampleRate <= 0 { sampleRate = 48_000 }
         guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2) else { return }
         let dsp = MotifDSP(sampleRate: Float(sampleRate), params: params)
+        if let piano { dsp.install(piano) }
         let node = AVAudioSourceNode(format: format) { _, _, frameCount, ablPointer in
             let buffers = UnsafeMutableAudioBufferListPointer(ablPointer)
             guard buffers.count >= 2,
