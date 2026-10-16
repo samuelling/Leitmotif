@@ -1,90 +1,68 @@
 import Foundation
 
-/// Who the phone was talking to, broadly.
-enum LookupKind: String {
-    case app        // the services you chose to use (and their CDNs)
-    case system     // the phone talking to Apple about itself
-    case tracker    // analytics, ads and telemetry riding along
+/// Which voice a burst of traffic is sung in.
+enum UtteranceKind: String {
+    case burst      // ordinary traffic: sung by the soloist in the middle register
+    case bulk       // large downloads of full-size packets (streams, files): low and soft
+    case chatter    // small bursts of tiny packets (pings, keep-alives, chat): whispered
 
     var label: String {
         switch self {
-        case .app: return "apps & web"
-        case .system: return "Apple / system"
-        case .tracker: return "trackers"
-        }
-    }
-
-    /// The same three voices, named for what they mean in gait mode.
-    var gaitLabel: String {
-        switch self {
-        case .app: return "bursts"
-        case .system: return "bulk (streams, downloads)"
-        case .tracker: return "chatter"
+        case .burst: return "bursts"
+        case .bulk: return "bulk (streams, downloads)"
+        case .chatter: return "chatter"
         }
     }
 }
 
-/// One note of a leitmotif: a scale step (relative to the motif's first note, which is
-/// itself a chord tone) and a length in eighth notes.
+/// One note of a motif: a scale step (relative to the motif's first note, which is itself
+/// a chord tone) and a length in eighth notes.
 struct MotifNote: Equatable {
     var degree: Int
     var eighths: Int
 }
 
-/// One lookup, as heard and as scored.
-struct Lookup: Identifiable {
-    let id: Int                 // tunnel sequence number
+/// One burst of traffic, as heard and as scored.
+struct Utterance: Identifiable {
+    let id: Int
     let time: Date
-    let name: String            // "scontent-bos5-1.cdninstagram.com"
-    let domain: String          // "cdninstagram.com"
-    let kind: LookupKind
+    let word: String            // the gait word it completed: "↓L ↓L ↓M"
+    let kind: UtteranceKind
     let motif: [MotifNote]
     let pan: Float
-    /// Gait mode: a one-line description of the burst (size, length, packet size).
-    var detail: String? = nil
+    let detail: String          // "412 KB received · 1.3 s · 1380 B/packet"
     var fate: Fate = .waiting
 
     enum Fate { case waiting, sung, whispered, merged, dropped }
 }
 
-/// Turns hostnames into music. Everything here is a pure function of the name, so a given
-/// service always "sounds like itself": its motif is fixed across lookups, days and phones.
+/// Turns the gait of the phone's traffic into music. Everything here is a pure function of
+/// the gait word, so a recurring pattern always sounds like itself.
 enum Score {
-    static func lookup(_ e: WireEvent) -> Lookup {
-        let domain = registrableDomain(e.name)
-        let kind = classify(name: e.name, domain: domain)
-        let h = fnv(domain)
-        let pan = Float(Double((h >> 40) & 0xFF) / 255 - 0.5) * (kind == .tracker ? 1.4 : 0.6)
-        return Lookup(id: e.seq, time: Date(timeIntervalSince1970: e.t), name: e.name,
-                    domain: domain, kind: kind, motif: motif(domain: domain, name: e.name), pan: pan)
-    }
-
-    /// Gait mode: a burst, read as the last letter of a three-letter word ("↑s ↓M ↓L").
-    /// The word seeds the motif, so a recurring traffic pattern always gets the same tune.
+    /// A burst, read as the last letter of a three-letter word ("↑s ↓M ↓L"). The word seeds
+    /// the motif, so a recurring traffic pattern always gets the same tune.
     ///  • chatter (small bursts of small packets) → whispers
     ///  • bulk (large, mostly received, full-size packets) → the low, soft register
     ///  • everything else → the soloist's middle register
-    static func gait(_ b: Burst, word: [GaitSymbol], id: Int) -> Lookup {
+    static func utterance(_ b: Burst, word: [GaitSymbol], id: Int) -> Utterance {
         let text = word.map(\.text).joined(separator: " ")
         let key = "gait " + text
         let last = word.last ?? GaitSymbol(b)
-        let kind: LookupKind
+        let kind: UtteranceKind
         if last.size == 0 && b.meanPacket < 300 {
-            kind = .tracker
+            kind = .chatter
         } else if last.size == 2 && !last.up && b.meanPacket > 900 {
-            kind = .system
+            kind = .bulk
         } else {
-            kind = .app
+            kind = .burst
         }
         let h = fnv(key)
-        let pan = Float(Double((h >> 40) & 0xFF) / 255 - 0.5) * (kind == .tracker ? 1.4 : 0.6)
+        let pan = Float(Double((h >> 40) & 0xFF) / 255 - 0.5) * (kind == .chatter ? 1.4 : 0.6)
         var detail = "\(formatBytes(b.bytes)) \(last.up ? "sent" : "received")"
         detail += String(format: " · %.1f s · %ld B/packet", b.duration, Int(b.meanPacket))
         if b.onCell { detail += " · cellular" }
-        var l = Lookup(id: id, time: Date(), name: text, domain: text, kind: kind,
-                       motif: motif(domain: key, name: key), pan: pan)
-        l.detail = detail
-        return l
+        return Utterance(id: id, time: Date(), word: text, kind: kind,
+                         motif: motif(key), pan: pan, detail: detail)
     }
 
     static func formatBytes(_ x: Double) -> String {
@@ -93,10 +71,10 @@ enum Score {
         return "\(Int(x)) B"
     }
 
-    /// The motif: 2–4 notes drawn from the domain's hash, with a small family resemblance
-    /// across its subdomains (api., cdn., www. vary only the last note).
-    static func motif(domain: String, name: String) -> [MotifNote] {
-        var r = Mix(fnv(domain))
+    /// The motif: 2–4 notes drawn from the key's hash: a chord-tone start, mostly stepwise
+    /// moves with the occasional leap, and a longer last note so each phrase lands.
+    static func motif(_ key: String) -> [MotifNote] {
+        var r = Mix(fnv(key))
         let count = 2 + r.int(3)
         let moves = [1, -1, 2, -2, 3, 0, 1, -1, 4, -3]
         let shortLens = [1, 1, 2, 1, 3, 2]
@@ -107,60 +85,8 @@ enum Score {
             let last = i == count - 1
             notes.append(MotifNote(degree: deg, eighths: last ? [2, 3, 4][r.int(3)] : shortLens[r.int(shortLens.count)]))
         }
-        if name != domain {
-            var v = Mix(fnv(name))
-            let n = notes.count - 1
-            notes[n].degree += [1, -1, 2, 0][v.int(4)]
-            if v.int(4) == 0 { notes.append(MotifNote(degree: notes[n].degree + 1, eighths: 1)) }
-        }
         return notes
     }
-
-    // MARK: Names
-
-    /// "scontent-bos5-1.cdninstagram.com" → "cdninstagram.com"; "bbc.co.uk" stays whole.
-    static func registrableDomain(_ name: String) -> String {
-        let labels = name.split(separator: ".").map(String.init)
-        guard labels.count > 2 else { return name }
-        let tld = labels[labels.count - 1], sld = labels[labels.count - 2]
-        let compoundSLD: Set<String> = ["co", "com", "net", "org", "gov", "edu", "ac", "ne", "or", "go", "gob"]
-        let take = (tld.count == 2 && compoundSLD.contains(sld)) ? 3 : 2
-        return labels.suffix(take).joined(separator: ".")
-    }
-
-    static func classify(name: String, domain: String) -> LookupKind {
-        if trackerDomains.contains(domain) { return .tracker }
-        let first = name.split(separator: ".").first.map(String.init) ?? ""
-        let trackerWords = ["analytics", "telemetry", "metrics", "tracking", "tracker", "adservice", "ads",
-                            "pixel", "beacon", "collector", "stats", "events", "log", "logs", "crashlytics"]
-        if trackerWords.contains(first) { return .tracker }
-        if systemDomains.contains(domain) { return .system }
-        return .app
-    }
-
-    /// A small, hand-picked list: enough to hear the pattern, nowhere near a real blocklist.
-    static let trackerDomains: Set<String> = [
-        "doubleclick.net", "google-analytics.com", "googletagmanager.com", "googlesyndication.com",
-        "googleadservices.com", "app-measurement.com", "crashlytics.com", "adsrvr.org",
-        "branch.io", "app.link", "adjust.com", "adjust.world", "appsflyer.com", "appsflyersdk.com",
-        "amplitude.com", "mixpanel.com", "segment.io", "segment.com", "sentry.io", "bugsnag.com",
-        "scorecardresearch.com", "criteo.com", "criteo.net", "taboola.com", "outbrain.com",
-        "applovin.com", "applvn.com", "unityads.unity3d.com", "moatads.com", "doubleverify.com",
-        "adnxs.com", "rubiconproject.com", "pubmatic.com", "chartboost.com", "vungle.com",
-        "inmobi.com", "onesignal.com", "braze.com", "braze.eu", "appboy.com", "kochava.com",
-        "singular.net", "newrelic.com", "nr-data.net", "datadoghq.com", "hotjar.com",
-        "fullstory.com", "quantserve.com", "demdex.net", "omtrdc.net", "2o7.net", "everesttech.net",
-        "bluekai.com", "krxd.net", "liadm.com", "openx.net", "casalemedia.com", "yieldmo.com",
-        "smartadserver.com", "amazon-adsystem.com", "ads-twitter.com", "ads.linkedin.com",
-        "facebook.net", "tiktokv.com", "byteoversea.com", "mparticle.com", "launchdarkly.com",
-        "statsig.com", "optimizely.com", "iterable.com", "leanplum.com", "clevertap-prod.com",
-    ]
-
-    static let systemDomains: Set<String> = [
-        "apple.com", "icloud.com", "icloud-content.com", "mzstatic.com", "apple-dns.net",
-        "aaplimg.com", "cdn-apple.com", "apple-cloudkit.com", "apple.news", "me.com",
-        "apple-mapkit.com", "itunes.com", "apple-livephotoskit.com",
-    ]
 
     // MARK: Hashing (stable across launches, unlike Swift's Hasher)
 

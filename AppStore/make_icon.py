@@ -71,6 +71,6 @@ def tile(bg, symbol, number, mass, name, glow_rgb, out):
 
     img.convert("RGB").resize((1024, 1024), Image.LANCZOS).save(out)
 
-# 121, the next element after Bellweathered; mass [53], the port every DNS lookup is asked on.
-tile(motif_bg(), "Lm", "121", "[53]", "Leitmotif", (255, 110, 170), sys.argv[1])
+# 121, the next element after Bellweathered; mass [1500], the size of a full packet (the MTU).
+tile(motif_bg(), "Lm", "121", "[1500]", "Leitmotif", (255, 110, 170), sys.argv[1])
 print("ok")

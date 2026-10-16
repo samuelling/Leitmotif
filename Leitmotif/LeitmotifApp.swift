@@ -9,12 +9,12 @@ struct LeitmotifApp: App {
 }
 
 /// Colours for who the phone was talking to.
-extension LookupKind {
+extension UtteranceKind {
     var color: Color {
         switch self {
-        case .app: return Color(red: 1.0, green: 0.72, blue: 0.36)
-        case .system: return Color(red: 0.55, green: 0.66, blue: 0.95)
-        case .tracker: return Color(red: 1.0, green: 0.36, blue: 0.62)
+        case .burst: return Color(red: 1.0, green: 0.72, blue: 0.36)
+        case .bulk: return Color(red: 0.55, green: 0.66, blue: 0.95)
+        case .chatter: return Color(red: 1.0, green: 0.36, blue: 0.62)
         }
     }
 }
@@ -79,8 +79,8 @@ struct LeitmotifView: View {
         HStack {
             stat(model.meterWorks ? rate(model.down) : "—", "down")
             stat(model.meterWorks ? rate(model.up) : "—", "up")
-            stat("\(model.perMinute)", "\(model.eventsName)/min")
-            stat("\(model.totalHeard)", "since start")
+            stat("\(model.perMinute)", "bursts/min")
+            stat("\(model.bursts)", "since start")
         }
     }
 
@@ -111,27 +111,24 @@ struct LeitmotifView: View {
     }
 
     private var emptyText: String {
-        switch (model.source, model.isPlaying) {
-        case (.names, true): return "Waiting for your phone to look something up. Open another app."
-        case (.names, false): return "Every name your phone looks up will appear here, and be sung."
-        case (.gait, true): return "Waiting for a burst of traffic. Open another app."
-        case (.gait, false): return "Every burst of traffic will appear here as a three-letter word, and be sung."
-        }
+        model.isPlaying
+            ? "Waiting for a burst of traffic. Open another app."
+            : "Every burst of traffic will appear here as a three-letter word, and be sung."
     }
 
     private var ledger: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                ForEach([LookupKind.app, .system, .tracker], id: \.self) { k in
+                ForEach([UtteranceKind.burst, .bulk, .chatter], id: \.self) { k in
                     HStack(spacing: 4) {
                         Circle().fill(k.color).frame(width: 7, height: 7)
-                        Text(model.source == .gait ? k.gaitLabel : k.label)
+                        Text(k.label)
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                 }
                 Spacer()
             }
-            if model.lookups.isEmpty {
+            if model.utterances.isEmpty {
                 Text(emptyText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -139,8 +136,8 @@ struct LeitmotifView: View {
                     .frame(maxWidth: .infinity)
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(model.lookups) { t in
-                        LookupRow(lookup: t, showName: model.showNames)
+                    ForEach(model.utterances) { t in
+                        UtteranceRow(item: t)
                         Divider().opacity(0.25)
                     }
                 }
@@ -149,32 +146,23 @@ struct LeitmotifView: View {
     }
 }
 
-private struct LookupRow: View {
-    let lookup: Lookup
-    let showName: Bool
+private struct UtteranceRow: View {
+    let item: Utterance
 
     var body: some View {
         HStack(spacing: 10) {
-            Circle().fill(lookup.kind.color).frame(width: 8, height: 8)
+            Circle().fill(item.kind.color).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 1) {
-                Text(showName || lookup.detail != nil ? lookup.domain : hidden)
+                Text(item.word)
                     .font(.system(.subheadline, design: .monospaced))
                     .lineLimit(1)
-                if let detail = lookup.detail {
-                    Text(detail)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                } else if showName && lookup.name != lookup.domain {
-                    Text(lookup.name)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+                Text(item.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Spacer(minLength: 8)
-            MotifGlyph(motif: lookup.motif, color: lookup.kind.color, fate: lookup.fate)
+            MotifGlyph(motif: item.motif, color: item.kind.color, fate: item.fate)
                 .frame(width: 54, height: 22)
             Text(fateMark)
                 .font(.caption)
@@ -182,17 +170,11 @@ private struct LookupRow: View {
                 .frame(width: 14)
         }
         .padding(.vertical, 6)
-        .opacity(lookup.fate == .dropped ? 0.45 : 1)
-    }
-
-    /// Hide the name but keep the shape: "••••••.com".
-    private var hidden: String {
-        let tld = lookup.domain.split(separator: ".").last.map(String.init) ?? ""
-        return String(repeating: "•", count: min(10, max(3, lookup.domain.count - tld.count - 1))) + "." + tld
+        .opacity(item.fate == .dropped ? 0.45 : 1)
     }
 
     private var fateMark: String {
-        switch lookup.fate {
+        switch item.fate {
         case .sung: return "♪"
         case .whispered: return "·"
         case .merged: return "↺"
@@ -206,7 +188,7 @@ private struct LookupRow: View {
 private struct MotifGlyph: View {
     let motif: [MotifNote]
     let color: Color
-    let fate: Lookup.Fate
+    let fate: Utterance.Fate
 
     var body: some View {
         Canvas { ctx, size in
@@ -241,7 +223,7 @@ private struct VoiceOrb: View {
                 .scaleEffect(0.35 + 0.9 * voice)
                 .opacity(playing ? 0.25 + 0.75 * voice : 0.12)
             Circle()
-                .stroke(LookupKind.tracker.color.opacity(whisper), lineWidth: 1.5)
+                .stroke(UtteranceKind.chatter.color.opacity(whisper), lineWidth: 1.5)
                 .scaleEffect(0.9 + 0.3 * whisper)
             Circle()
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
@@ -270,20 +252,6 @@ struct LeitmotifSettings: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Listen to", selection: $model.source) {
-                        Text("Names").tag(LeitmotifModel.Source.names)
-                        Text("Gait").tag(LeitmotifModel.Source.gait)
-                    }
-                    .pickerStyle(.segmented)
-                } header: {
-                    Text("Listen to")
-                } footer: {
-                    Text(model.source == .names
-                         ? "Names: every server name your phone looks up gets its own motif. Uses an on-device VPN that carries only those lookups."
-                         : "Gait: no VPN. Leitmotif reads only how much your phone sends and receives, and in what rhythm. Each burst becomes a letter (↑ sent, ↓ received; small, Medium, Large), and each three-letter word becomes a motif, so a habit (streaming, messaging, scrolling) gets a tune by its footsteps instead of its name.")
-                }
-
-                Section {
                     Toggle("Follow the duo", isOn: $model.followDuo)
                     DuoControls(duo: model.duo, partnerName: "Aether or Bellweathered")
                 } header: {
@@ -308,11 +276,14 @@ struct LeitmotifSettings: View {
                 }
                 .disabled(model.followingKey)
 
-                Section("Voice") {
+                Section {
                     Stepper("Octave \(model.octave >= 0 ? "+" : "")\(model.octave)", value: $model.octave, in: -2...1)
-                    Toggle("Whisper the trackers", isOn: $model.whisperTrackers)
-                    Toggle("Show names on screen", isOn: $model.showNames)
+                    Toggle("Whisper the chatter", isOn: $model.whisperChatter)
                     Button("Clear the list", role: .destructive) { model.clearLedger() }
+                } header: {
+                    Text("Voice")
+                } footer: {
+                    Text("Leitmotif reads only how much your phone sends and receives, and in what rhythm: no names, no content, no VPN. Each burst becomes a letter (↑ sent, ↓ received; small, Medium, Large), and each three-letter word becomes a motif, so a habit (streaming, messaging, scrolling) gets a tune by its footsteps.")
                 }
 
                 Section {
@@ -327,17 +298,6 @@ struct LeitmotifSettings: View {
                     Text("Traffic log")
                 } footer: {
                     Text("Writes the raw counters (bytes and packets in and out, Wi-Fi, cellular and peer-to-peer, about 15 times a second) to a CSV in Files › On My iPhone › Leitmotif, for tuning the gait. No names, no content.")
-                }
-
-                Section {
-                    Picker("Resolver", selection: $model.upstream) {
-                        ForEach(WireUpstream.allCases) { Text($0.label).tag($0) }
-                    }
-                    .disabled(model.source == .gait)
-                } header: {
-                    Text("Lookups")
-                } footer: {
-                    Text("While Leitmotif listens, your phone's name lookups go to this resolver instead of your Wi-Fi's or carrier's. Leitmotif keeps the names in memory only, never on disk, and closes the tunnel if the app stops asking for five minutes.")
                 }
             }
             .navigationTitle("Leitmotif")

@@ -1,6 +1,6 @@
 name: Build
 
-# Compile-check both targets (app + tunnel extension) for a generic iPhone, unsigned.
+# Compile-check the app for a generic iPhone, unsigned.
 on:
   push:
   pull_request:
@@ -23,5 +23,5 @@ jobs:
         if: always()
         run: |
           grep -E "^/.*\.swift:[0-9]+:[0-9]+: (warning|error):" build.log | sort -u | head -40 | \
-            sed -E 's#^.*/(Leitmotif[^/]*|Shared|Duo)/([^:]+):([0-9]+):[0-9]+: (warning|error): (.*)$#::\4 file=\1/\2,line=\3::\5#' || true
-          echo "::notice::$(grep -c 'SwiftCompile ' build.log || true) Swift compile steps; $(grep -c 'warning:' build.log || true) warning lines; appex: $(grep -c 'LeitmotifTunnel.appex' build.log || true) mentions"
+            sed -E 's#^.*/(Leitmotif|Duo)/([^:]+):([0-9]+):[0-9]+: (warning|error): (.*)$#::\4 file=\1/\2,line=\3::\5#' || true
+          echo "::notice::$(grep -c 'SwiftCompile ' build.log || true) Swift compile steps; $(grep -c 'warning:' build.log || true) warning lines"

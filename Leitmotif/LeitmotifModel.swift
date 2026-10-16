@@ -1,13 +1,13 @@
 import Foundation
-import NetworkExtension
 
 /// Leitmotif: your phone's own chatter, sung as a solo line over the Aether + Bellweathered duo.
 ///
-/// Two senses, like reading a house from the street:
-///  • the address book: every name the phone looks up (who it's talking to), heard by the
-///    LeitmotifTunnel extension, becomes a leitmotif, so each service always sounds like itself;
-///  • the water meter: total bytes flowing in and out (how hard it's talking), which sets
-///    how hard and bright the piano is played, and how much tape dust rides along.
+/// It reads only the phone's link counters (bytes and packets, in and out), like recognizing
+/// someone in the hallway by their footsteps rather than their face:
+///  • the gait: each burst of traffic becomes a letter, and each three-letter word a motif,
+///    so a habit (streaming, messaging, scrolling) always sounds like itself;
+///  • the water meter: how hard the phone is talking sets how hard and bright the piano is
+///    played, and how much tape dust rides along.
 ///
 /// The duo leads; Leitmotif follows. It takes key and scale from Bellweathered (or Aether),
 /// tempo and the current chord from Aether, and remembers them when it loses touch (iOS cuts
@@ -15,7 +15,7 @@ import NetworkExtension
 @MainActor
 final class LeitmotifModel: ObservableObject {
     // What the screen shows
-    @Published private(set) var lookups: [Lookup] = []           // newest first
+    @Published private(set) var utterances: [Utterance] = []     // newest first
     @Published private(set) var isPlaying = false
     @Published private(set) var status = "Tap Listen to begin"
     @Published private(set) var down: Double = 0
@@ -33,38 +33,25 @@ final class LeitmotifModel: ObservableObject {
     @Published var scaleIndex: Int { didSet { save("scaleIndex", scaleIndex) } }
     @Published var bpm: Double { didSet { save("bpm", bpm) } }
     @Published var octave: Int { didSet { save("octave", octave) } }
-    @Published var whisperTrackers: Bool { didSet { save("whisperTrackers", whisperTrackers) } }
-    @Published var showNames: Bool { didSet { save("showNames", showNames) } }
-    @Published var upstream: WireUpstream { didSet { upstreamChanged(oldValue) } }
-    /// What Leitmotif listens to: the names the phone looks up (needs the DNS tunnel), or
-    /// only the gait of its traffic (byte and packet counters; no tunnel, no VPN).
-    @Published var source: Source { didSet { sourceChanged(oldValue) } }
+    @Published var whisperChatter: Bool { didSet { save("whisperChatter", whisperChatter) } }
     /// Write every raw counter sample to a CSV (Files › On My iPhone › Leitmotif).
     @Published var recording = false { didSet { recordingChanged() } }
     @Published private(set) var logURL: URL?
     @Published private(set) var bursts = 0
 
-    enum Source: String, CaseIterable, Identifiable {
-        case names, gait
-        var id: String { rawValue }
-        var label: String { self == .names ? "Names" : "Gait" }
-    }
-
-    let tunnel = Tunnel()
     let duo = DuoLink(role: "leitmotif")
     private let engine = MotifEngine()
     private var meter = Meter()
     private let gait = GaitSensor()
     private var gaitWord: [GaitSymbol] = []
-    private var gaitSeq = 1_000_000
+    private var gaitSeq = 0
     private var trafficLog: TrafficLog?
     private var timer: Timer?
     private var tickCount = 0
-    private var lastTunnelStatus: NEVPNStatus = .invalid
 
     // The score
-    private var pending: [Lookup] = []          // motifs waiting for the soloist
-    private var whispers: [Lookup] = []         // tracker blips waiting
+    private var pending: [Utterance] = []       // motifs waiting for the soloist
+    private var whispers: [Utterance] = []      // chatter blips waiting
     private var leadFree: Double = 0          // beat at which the soloist is next free
     private var lastSung: Double = -100
     private var nextHum: Double = 0
@@ -85,12 +72,8 @@ final class LeitmotifModel: ObservableObject {
         scaleIndex = d.object(forKey: "scaleIndex") as? Int ?? 0
         bpm = d.object(forKey: "bpm") as? Double ?? 72
         octave = d.object(forKey: "octave") as? Int ?? 0
-        whisperTrackers = d.object(forKey: "whisperTrackers") as? Bool ?? true
-        showNames = d.object(forKey: "showNames") as? Bool ?? true
-        upstream = WireUpstream(rawValue: d.string(forKey: "upstream") ?? "") ?? .cloudflare
-        source = Source(rawValue: d.string(forKey: "source") ?? "") ?? .names
+        whisperChatter = d.object(forKey: "whisperChatter") as? Bool ?? true
 
-        tunnel.onEvents = { [weak self] events in MainActor.assumeIsolated { self?.ingest(events) } }
         gait.onBurst = { [weak self] b in MainActor.assumeIsolated { self?.heard(b) } }
         gait.onSample = { [weak self] t, w, m, p in MainActor.assumeIsolated { self?.trafficLog?.write(t, w, m, p) } }
         duo.onState = { [weak self] s in MainActor.assumeIsolated { self?.receiveDuo(s) } }
@@ -107,12 +90,9 @@ final class LeitmotifModel: ObservableObject {
 
     // MARK: Transport
 
-    /// Listen = start singing (and, in Names mode, open the tunnel). Stop = all off, and the
-    /// phone's DNS goes straight back to normal.
     func togglePlay() {
         if isPlaying {
             engine.stop()
-            tunnel.stop()
             isPlaying = false
         } else {
             do {
@@ -121,10 +101,6 @@ final class LeitmotifModel: ObservableObject {
                 leadFree = engine.params.nowBeat
                 gait.reset()
                 gaitWord.removeAll()
-                if source == .names && !tunnel.isOn {
-                    let u = upstream
-                    Task { await tunnel.start(upstream: u) }
-                }
             } catch {
                 status = "Audio failed to start: \(error.localizedDescription)"
             }
@@ -137,7 +113,7 @@ final class LeitmotifModel: ObservableObject {
         if duo.enabled && duo.phase == .paused { duo.searchAgain() }
     }
 
-    func clearLedger() { lookups.removeAll() }
+    func clearLedger() { utterances.removeAll() }
 
     // MARK: The clock
 
@@ -147,9 +123,8 @@ final class LeitmotifModel: ObservableObject {
         tickCount += 1
         let now = ProcessInfo.processInfo.systemUptime
 
-        if tickCount % 8 == 0 && source == .names { tunnel.poll() }
         // ~15 samples a second for the gait (and the traffic log, if it's recording)
-        if tickCount % 2 == 0 && ((isPlaying && source == .gait) || recording) { gait.sample(now: now) }
+        if tickCount % 2 == 0 && (isPlaying || recording) { gait.sample(now: now) }
         if tickCount % 15 == 0 {
             meter.sample(now: now)
             down = meter.down
@@ -158,10 +133,6 @@ final class LeitmotifModel: ObservableObject {
             let cutoff = Date().addingTimeInterval(-60)
             heardTimes.removeAll { $0 < cutoff }
             perMinute = heardTimes.count
-            if tunnel.status != lastTunnelStatus {
-                lastTunnelStatus = tunnel.status
-                updateStatus()
-            }
             if tickCount % 90 == 0 { refreshHarmonyLine() }
         }
 
@@ -169,7 +140,7 @@ final class LeitmotifModel: ObservableObject {
         p[.bpm] = Float(effectiveBPM)
         p[.bright] = Float(level)
         p[.breath] = Float(meterWorks ? meter.upLevel : 0.2)
-        p[.whisperGain] = whisperTrackers ? 1 : 0
+        p[.whisperGain] = whisperChatter ? 1 : 0
         engine.setSpace(bpm: effectiveBPM, busy: min(1, Double(perMinute) / 120))
 
         if isPlaying { schedule(level: level) }
@@ -182,51 +153,45 @@ final class LeitmotifModel: ObservableObject {
 
     // MARK: Ingest
 
-    private func ingest(_ events: [WireEvent]) {
-        guard source == .names else { return }
-        accept(events.map(Score.lookup))
-    }
-
     /// A finished burst of traffic: the newest letter of the gait word.
     private func heard(_ b: Burst) {
-        guard isPlaying, source == .gait else { return }
+        guard isPlaying else { return }
         gaitWord.append(GaitSymbol(b))
         if gaitWord.count > 3 { gaitWord.removeFirst(gaitWord.count - 3) }
         gaitSeq += 1
         bursts += 1
-        accept([Score.gait(b, word: gaitWord, id: gaitSeq)])
+        accept(Score.utterance(b, word: gaitWord, id: gaitSeq))
     }
 
-    private func accept(_ incoming: [Lookup]) {
-        for var t in incoming {
-            heardTimes.append(t.time)
-            switch t.kind {
-            case .tracker:
-                if whisperTrackers && isPlaying {
-                    if whispers.count < 6 { whispers.append(t); t.fate = .whispered } else { t.fate = .dropped }
-                } else {
-                    t.fate = .dropped
-                }
-            case .app, .system:
-                if !isPlaying {
-                    t.fate = .dropped
-                } else if pending.contains(where: { $0.domain == t.domain }) {
-                    t.fate = .merged                 // already waiting to be sung
-                } else {
-                    pending.append(t)
-                    if pending.count > 6 {
-                        let gone = pending.removeFirst()
-                        setFate(gone.id, .dropped)
-                    }
+    private func accept(_ incoming: Utterance) {
+        var t = incoming
+        heardTimes.append(t.time)
+        switch t.kind {
+        case .chatter:
+            if whisperChatter && isPlaying {
+                if whispers.count < 6 { whispers.append(t); t.fate = .whispered } else { t.fate = .dropped }
+            } else {
+                t.fate = .dropped
+            }
+        case .burst, .bulk:
+            if !isPlaying {
+                t.fate = .dropped
+            } else if pending.contains(where: { $0.word == t.word }) {
+                t.fate = .merged                 // already waiting to be sung
+            } else {
+                pending.append(t)
+                if pending.count > 6 {
+                    let gone = pending.removeFirst()
+                    setFate(gone.id, .dropped)
                 }
             }
-            lookups.insert(t, at: 0)
         }
-        if lookups.count > 120 { lookups.removeLast(lookups.count - 120) }
+        utterances.insert(t, at: 0)
+        if utterances.count > 120 { utterances.removeLast(utterances.count - 120) }
     }
 
-    private func setFate(_ id: Int, _ fate: Lookup.Fate) {
-        if let i = lookups.firstIndex(where: { $0.id == id }) { lookups[i].fate = fate }
+    private func setFate(_ id: Int, _ fate: Utterance.Fate) {
+        if let i = utterances.firstIndex(where: { $0.id == id }) { utterances[i].fate = fate }
     }
 
     // MARK: Scheduling onto the grid
@@ -243,11 +208,11 @@ final class LeitmotifModel: ObservableObject {
             let busy = pending.count >= 3              // a backlog: talk faster, say less
             let notes = busy ? Array(t.motif.prefix(2)).map { MotifNote(degree: $0.degree, eighths: 1) } : t.motif
             var b = max(leadFree, ((now + 0.35) * 2).rounded(.up) / 2)
-            let kindGain = t.kind == .system ? 0.7 : 1.0
+            let kindGain = t.kind == .bulk ? 0.7 : 1.0
             for (i, n) in notes.enumerated() {
                 let beats = Double(n.eighths) * 0.5
                 let accent = i == 0 ? 1.0 : 0.85
-                p.stageLead(beat: b, freq: pitch(n.degree, register: t.kind == .system ? -1 : 0),
+                p.stageLead(beat: b, freq: pitch(n.degree, register: t.kind == .bulk ? -1 : 0),
                             vel: velBase * kindGain * accent, beats: beats, pan: t.pan)
                 b += beats
             }
@@ -255,19 +220,19 @@ final class LeitmotifModel: ObservableObject {
             lastSung = b
             setFate(t.id, .sung)
         } else if pending.isEmpty, level > 0.4, now - lastSung > 8, now >= nextHum, leadFree - now < 1 {
-            // Heavy traffic but nothing new to name (a stream, a download): hum the chord root.
+            // Heavy traffic but no new bursts (one long stream or download): hold the chord root.
             let b = max(leadFree, now.rounded(.up))
             p.stageLead(beat: b, freq: pitch(0, register: -1), vel: 0.25 + 0.2 * level, beats: 4, pan: 0)
             leadFree = b + 4
             nextHum = b + 8
         }
 
-        // Whispers: tracker blips on the off-sixteenths, never more than two a beat.
+        // Whispers: chatter blips on the off-sixteenths, never more than two a beat.
         if !whispers.isEmpty, lastWhisper - now < 1.5 {
             let t = whispers.removeFirst()
             var b = max(lastWhisper + 0.5, ((now + 0.2) * 4).rounded(.up) / 4)
             if b.truncatingRemainder(dividingBy: 0.5) == 0 { b += 0.25 }
-            var r = Score.Mix(Score.fnv(t.domain))
+            var r = Score.Mix(Score.fnv(t.word))
             p.stageWhisper(beat: b, freq: pitch(r.int(7), register: 2), vel: 0.5 + 0.4 * Double(r.int(3)) / 2, pan: t.pan)
             lastWhisper = b
         }
@@ -347,25 +312,6 @@ final class LeitmotifModel: ObservableObject {
 
     // MARK: Status and settings
 
-    var eventsName: String { source == .names ? "lookups" : "bursts" }
-    var totalHeard: Int { source == .names ? tunnel.queries : bursts }
-
-    private func sourceChanged(_ old: Source) {
-        UserDefaults.standard.set(source.rawValue, forKey: "source")
-        guard source != old else { return }
-        pending.removeAll()
-        whispers.removeAll()
-        gait.reset()
-        gaitWord.removeAll()
-        if source == .gait {
-            tunnel.stop()                       // the phone's DNS goes back to normal
-        } else if isPlaying && !tunnel.isOn {
-            let u = upstream
-            Task { await tunnel.start(upstream: u) }
-        }
-        updateStatus()
-    }
-
     private func recordingChanged() {
         if recording {
             gait.reset()
@@ -379,32 +325,7 @@ final class LeitmotifModel: ObservableObject {
     }
 
     private func updateStatus() {
-        if source == .gait {
-            status = isPlaying ? "Listening to the gait of your phone's traffic" : "Tap Listen to begin"
-            return
-        }
-        switch tunnel.status {
-        case .connected:
-            status = isPlaying ? "Listening to your phone's lookups" : "Tunnel open, sound off"
-        case .connecting, .reasserting:
-            status = "Opening the tunnel…"
-        case .disconnecting:
-            status = "Closing the tunnel…"
-        case .disconnected:
-            status = isPlaying ? "Tunnel closed — tap Stop, then Listen" : "Tap Listen to begin"
-        case .invalid:
-            status = isPlaying ? "Allow the VPN prompt to let Leitmotif listen" : "Tap Listen to begin"
-        @unknown default:
-            status = ""
-        }
-        if let e = tunnel.lastError { status = "Tunnel: \(e)" }
-    }
-
-    private func upstreamChanged(_ old: WireUpstream) {
-        UserDefaults.standard.set(upstream.rawValue, forKey: "upstream")
-        guard upstream != old, tunnel.isOn else { return }
-        let u = upstream
-        Task { await tunnel.start(upstream: u) }
+        status = isPlaying ? "Listening to the gait of your phone's traffic" : "Tap Listen to begin"
     }
 
     private func save(_ key: String, _ value: Any) {

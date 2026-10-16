@@ -6,53 +6,14 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		1E0000000000000000000013 /* LeitmotifTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1E0000000000000000000002 /* LeitmotifTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-/* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		1E0000000000000000000014 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 1E0000000000000000000009 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 1E000000000000000000000B;
-			remoteInfo = LeitmotifTunnel;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		1E000000000000000000000F /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				1E0000000000000000000013 /* LeitmotifTunnel.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
 		1E0000000000000000000001 /* Leitmotif.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Leitmotif.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		1E0000000000000000000002 /* LeitmotifTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LeitmotifTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		1E0000000000000000000003 /* Leitmotif */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Leitmotif;
-			sourceTree = "<group>";
-		};
-		1E0000000000000000000004 /* LeitmotifTunnel */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = LeitmotifTunnel;
-			sourceTree = "<group>";
-		};
-		1E0000000000000000000005 /* Shared */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Shared;
 			sourceTree = "<group>";
 		};
 		1E0000000000000000000006 /* Duo */ = {
@@ -70,13 +31,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1E0000000000000000000011 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -84,8 +38,6 @@
 			isa = PBXGroup;
 			children = (
 				1E0000000000000000000003 /* Leitmotif */,
-				1E0000000000000000000004 /* LeitmotifTunnel */,
-				1E0000000000000000000005 /* Shared */,
 				1E0000000000000000000006 /* Duo */,
 				1E0000000000000000000008 /* Products */,
 			);
@@ -95,7 +47,6 @@
 			isa = PBXGroup;
 			children = (
 				1E0000000000000000000001 /* Leitmotif.app */,
-				1E0000000000000000000002 /* LeitmotifTunnel.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -110,16 +61,13 @@
 				1E000000000000000000000C /* Sources */,
 				1E000000000000000000000D /* Frameworks */,
 				1E000000000000000000000E /* Resources */,
-				1E000000000000000000000F /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				1E0000000000000000000015 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				1E0000000000000000000003 /* Leitmotif */,
-				1E0000000000000000000005 /* Shared */,
 				1E0000000000000000000006 /* Duo */,
 			);
 			name = Leitmotif;
@@ -128,29 +76,6 @@
 			productName = Leitmotif;
 			productReference = 1E0000000000000000000001 /* Leitmotif.app */;
 			productType = "com.apple.product-type.application";
-		};
-		1E000000000000000000000B /* LeitmotifTunnel */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 1E0000000000000000000018 /* Build configuration list for PBXNativeTarget "LeitmotifTunnel" */;
-			buildPhases = (
-				1E0000000000000000000010 /* Sources */,
-				1E0000000000000000000011 /* Frameworks */,
-				1E0000000000000000000012 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				1E0000000000000000000004 /* LeitmotifTunnel */,
-				1E0000000000000000000005 /* Shared */,
-			);
-			name = LeitmotifTunnel;
-			packageProductDependencies = (
-			);
-			productName = LeitmotifTunnel;
-			productReference = 1E0000000000000000000002 /* LeitmotifTunnel.appex */;
-			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -163,9 +88,6 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					1E000000000000000000000A = {
-						CreatedOnToolsVersion = 16.0;
-					};
-					1E000000000000000000000B = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -185,20 +107,12 @@
 			projectRoot = "";
 			targets = (
 				1E000000000000000000000A /* Leitmotif */,
-				1E000000000000000000000B /* LeitmotifTunnel */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		1E000000000000000000000E /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		1E0000000000000000000012 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -215,22 +129,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1E0000000000000000000010 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		1E0000000000000000000015 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 1E000000000000000000000B /* LeitmotifTunnel */;
-			targetProxy = 1E0000000000000000000014 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		1E0000000000000000000019 /* Debug */ = {
@@ -284,7 +183,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = Leitmotif.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y4HDFDP479;
@@ -316,7 +214,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = Leitmotif.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y4HDFDP479;
@@ -344,58 +241,6 @@
 			};
 			name = Release;
 		};
-		1E000000000000000000001D /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = LeitmotifTunnel.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Y4HDFDP479;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "LeitmotifTunnel-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = LeitmotifTunnel;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.samuelling.leitmotif.tunnel;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_STRICT_CONCURRENCY = minimal;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Debug;
-		};
-		1E000000000000000000001E /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = LeitmotifTunnel.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Y4HDFDP479;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "LeitmotifTunnel-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = LeitmotifTunnel;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.samuelling.leitmotif.tunnel;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_STRICT_CONCURRENCY = minimal;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -413,15 +258,6 @@
 			buildConfigurations = (
 				1E000000000000000000001B /* Debug */,
 				1E000000000000000000001C /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		1E0000000000000000000018 /* Build configuration list for PBXNativeTarget "LeitmotifTunnel" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				1E000000000000000000001D /* Debug */,
-				1E000000000000000000001E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
