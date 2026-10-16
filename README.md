@@ -43,22 +43,9 @@ Aether and Bellweathered lead and Leitmotif follows. It listens on the same near
 
 iOS drops nearby connections when an app goes to the background, which is where Leitmotif spends its life. So it latches what it last heard: key, scale and tempo stay until it hears otherwise, and it falls back to the tonic for chords. Open Leitmotif now and then to re-sync. The header shows what it's following and how long ago it heard it. With no duo around, or with **Follow the duo** off, it uses its own key, scale and tempo from Settings.
 
-### ⚠️ Aether and Bellweathered need a small update first
+### Aether and Bellweathered
 
-Until now the duo code assumed exactly two apps, so a third listener would have broken the pair. `aether-duo-listener.patch` changes the shared `DuoLink.swift` so that:
-
-- the two leads still pair with each other exactly as before;
-- both leads invite any listener into their sessions;
-- a listener never invites and never sends.
-
-`Duo/DuoLink.swift` in this repo is the patched file, so all three apps speak the same protocol. Apply the patch in the Aether repo, then rebuild Aether and Bellweathered:
-
-```sh
-cd ~/path/to/Aether
-git apply ~/path/to/Leitmotif/aether-duo-listener.patch
-```
-
-Older builds of the duo will still play together, but with Leitmotif nearby Bellweathered may refuse Aether's invite.
+Listening needs the current Aether repo: its shared `DuoLink.swift` treats any app other than the two leads as a *listener*. The leads still pair with each other exactly as before, both invite listeners into their sessions, and a listener never invites or sends. Each lead's Settings › Duo shows "Listening in: Leitmotif" while it's connected. `Duo/` here is an identical copy of Aether's `Shared/DuoLink.swift` and `DuoControls.swift`, so change them together. Builds of Aether or Bellweathered from before this change still play together, but with Leitmotif nearby Bellweathered may refuse Aether's invite, so rebuild both.
 
 ## Install on your iPhone
 
@@ -95,6 +82,6 @@ The tunnel is a Network Extension, so this needs the paid Apple Developer Progra
 - `Leitmotif/MotifDSP.swift`: the soloist and whisper voices, and the lock-free note rings on the audio thread's beat clock.
 - `Leitmotif/MotifEngine.swift`: the AVAudioEngine graph (delay → hall). It mixes with other audio and keeps running in the background.
 - `Leitmotif/LeitmotifApp.swift`: main screen (voice orb, meters, the ledger of lookups with each motif drawn as a tiny piano roll) and settings.
-- `Duo/`: the shared duo link (patched; identical to the Aether repo's once the patch is applied).
+- `Duo/`: the shared duo link, identical to the Aether repo's `Shared/` copies.
 - `AppStore/make_icon.py`: the icon, a periodic-table tile matching the other two: Lm, element 121, mass [53] for the DNS port.
 - `.github/workflows/build.yml`: compiles both targets, unsigned, on every push.

@@ -67,6 +67,8 @@ final class DuoLink: NSObject, ObservableObject {
     @Published private(set) var phase: Phase = .off
     /// When the current search gives up (nil = searching indefinitely, or not searching).
     @Published private(set) var searchEnds: Date?
+    /// Listener apps (Leitmotif) currently connected to us, by app name. Leads only.
+    @Published private(set) var listeners: [String] = []
     /// User settings, persisted.
     @Published private(set) var enabled: Bool
     @Published private(set) var timeoutMinutes: Int       // 0 = never stop looking
@@ -293,7 +295,17 @@ final class DuoLink: NSObject, ObservableObject {
     }
 
     fileprivate func peerDisconnected() {
+        refreshListeners()
         if !hasPartnerPeer { dropPartner() }
+    }
+
+    fileprivate func refreshListeners() {
+        guard !isListener else { return }
+        let names = Set(session.connectedPeers.map { DuoLink.role(of: $0) }
+            .filter { !DuoLink.leadRoles.contains($0) }
+            .map { DuoLink.appName(of: $0) })
+        let sorted = names.sorted()
+        if sorted != listeners { listeners = sorted }
     }
 
     fileprivate var acceptsInvites: Bool { enabled && radiosOn }
@@ -305,6 +317,8 @@ extension DuoLink: MCSessionDelegate {
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         if state == .notConnected {
             DispatchQueue.main.async { [weak self] in self?.peerDisconnected() }
+        } else if state == .connected {
+            DispatchQueue.main.async { [weak self] in self?.refreshListeners() }
         }
     }
 
