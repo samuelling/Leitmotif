@@ -1,6 +1,6 @@
 name: Build
 
-# Compile-check the app for a generic iPhone, unsigned.
+# Compile-check both apps (Leitmotif, and Leitmotif Name with its tunnel) for a generic iPhone, unsigned.
 on:
   push:
   pull_request:
@@ -9,6 +9,10 @@ on:
 jobs:
   build:
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [Leitmotif, LeitmotifName]
     steps:
       - uses: actions/checkout@v4
       - name: Xcode version
@@ -16,12 +20,12 @@ jobs:
       - name: Build
         run: |
           set -o pipefail
-          xcodebuild -project Leitmotif.xcodeproj -target Leitmotif -sdk iphoneos \
+          xcodebuild -project Leitmotif.xcodeproj -target ${{ matrix.target }} -sdk iphoneos \
             -configuration Debug CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log | grep -E "error:|warning:|BUILD" || true
           grep -q "BUILD SUCCEEDED" build.log
       - name: Surface warnings as annotations
         if: always()
         run: |
           grep -E "^/.*\.swift:[0-9]+:[0-9]+: (warning|error):" build.log | sort -u | head -40 | \
-            sed -E 's#^.*/(Leitmotif|Duo)/([^:]+):([0-9]+):[0-9]+: (warning|error): (.*)$#::\4 file=\1/\2,line=\3::\5#' || true
+            sed -E 's#^.*/(Leitmotif|LeitmotifName|LeitmotifNameTunnel|Common|NameShared|Duo)/([^:]+):([0-9]+):[0-9]+: (warning|error): (.*)$#::\4 file=\1/\2,line=\3::\5#' || true
           echo "::notice::$(grep -c 'SwiftCompile ' build.log || true) Swift compile steps; $(grep -c 'warning:' build.log || true) warning lines"

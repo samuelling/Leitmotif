@@ -4,6 +4,21 @@ Your iPhone's own data traffic, sung as a solo melody. It's the third voice alon
 
 Leitmotif never sees what your phone says or to whom. It reads only how much the phone sends and receives, and in what rhythm. It recognizes habits the way you'd recognize someone in the hallway by their footsteps, not their face. A video stream, a text conversation and an infinite scroll each have a different gait, and each gait gets its own short musical motif. Over a day your habits turn into recurring themes, the way a character in an opera gets a leitmotif.
 
+## Two editions
+
+This repo builds two apps that share the same piano, sound engine and duo link (`Common/`, `Duo/`):
+
+| | **Leitmotif** (for sharing) | **Leitmotif Name** (personal) |
+|---|---|---|
+| Hears | The *gait* of the phone's traffic: bursts, direction, size | The *names* the phone looks up (`instagram.com`, `app-measurement.com`…) |
+| How | The phone's own byte and packet counters | An on-device DNS tunnel (a "VPN" that carries only lookups) |
+| A motif per | Three-letter gait word | Domain, with subdomains as variations |
+| Needs | Nothing special | Paid developer account, the Network Extension capability, and allowing a VPN profile |
+| App Store | Fine | Not as an individual developer (guideline 5.4); run it from Xcode or internal TestFlight |
+| Icon | Lm, 121, [1500] (a full packet) | Ln, 122, [53] (the DNS port) |
+
+The next few sections describe Leitmotif; [Leitmotif Name](#leitmotif-name) has its own section further down.
+
 ## How it listens
 
 The phone keeps running totals of bytes and packets, in and out, for each network link. Leitmotif reads them about 15 times a second, for Wi-Fi and cellular. No VPN, no special permission, no names, no content.
@@ -46,11 +61,38 @@ iOS drops nearby connections when an app goes to the background, which is where 
 
 The duo code (`Duo/`) is an identical copy of the Aether repo's `Shared/DuoLink.swift` and `DuoControls.swift`, so change them together. It treats any app other than the two leads as a *listener*: both leads invite it, it never invites or sends, and each lead's Settings › Duo shows "Listening in: Leitmotif".
 
-## Install on your iPhone
+## Leitmotif Name
+
+The personal edition hears *who* the phone talks to, not just how. Every app has to look up a server's name before it can reach it. Leitmotif Name makes itself the phone's DNS resolver through an on-device packet tunnel that claims only one made-up address, `10.111.0.53`. Each lookup passes by: it notes the name, forwards the question to Cloudflare, Quad9 or Google (Settings › Lookups), and hands the answer back. All other traffic bypasses the tunnel untouched, so it never sees a byte of your messages, video or browsing. Names stay in memory only, and the tunnel closes itself if the app stops asking for five minutes.
+
+| Lookup | Music |
+|---|---|
+| Each service's domain (`cdninstagram.com`), hashed | Its leitmotif: 2 to 4 notes from a chord tone, the same every time |
+| Subdomains (`api.`, `cdn.`, `www.`) | Family resemblance: same motif, last note varied |
+| Apps and the web | The soloist's middle register |
+| Apple and system (`apple.com`, `icloud.com`) | An octave down and softer: the phone murmuring to itself |
+| Trackers, analytics and ads (a small hand-picked list plus `analytics.`, `telemetry.`…) | Pianissimo staccato whispers two octaves up |
+| Download / upload rate | Touch and brightness / tape dust, as in Leitmotif |
+
+**Installing it** (paid developer account needed for the tunnel):
+
+1. In Xcode, set **Team** on both the **LeitmotifName** and **LeitmotifNameTunnel** targets (Signing & Capabilities). Each should show **Network Extensions → Packet Tunnel**. If Xcode complains about the profile, click **+ Capability → Network Extensions** and tick **Packet Tunnel** on both.
+2. Choose the **LeitmotifName** scheme, then **▶ Run**.
+3. Tap **Listen**, allow *"Leitmotif Name Would Like to Add VPN Configurations"*, and allow local-network access.
+
+**Limits.**
+- Apps that encrypt their own lookups (some browsers' secure DNS, apps with a hard-coded resolver) bypass the tunnel, and with iCloud Private Relay on, Safari may too.
+- Lookups are cached, so a service you use constantly returns as a refrain every few minutes rather than on every tap.
+- It replaces any other VPN while listening.
+- DNS over TCP (rare, for oversized answers) isn't handled.
+
+Both editions can be installed side by side. They have separate bundle IDs and settings, and each joins the duo as "Leitmotif".
+
+## Install Leitmotif on your iPhone
 
 1. Open `Leitmotif.xcodeproj` in Xcode 16 or newer.
-2. Click the blue **Leitmotif** project icon, go to **Signing & Capabilities**, and set **Team**.
-3. Choose your iPhone and press **▶ Run**.
+2. Click the blue **Leitmotif** project icon, select the **Leitmotif** target, go to **Signing & Capabilities**, and set **Team**.
+3. Choose the **Leitmotif** scheme and your iPhone, then press **▶ Run**.
 4. Tap **Listen**, and allow local-network access when asked so it can find the duo.
 5. Switch to other apps and use your phone. Headphones or AirPlay recommended.
 
@@ -58,18 +100,28 @@ The duo code (`Duo/`) is an identical copy of the Aether repo's `Shared/DuoLink.
 
 - **Whole-phone, not per-app.** The counters cover the whole phone, so two apps talking at once blur into one gait, and background syncing is always somewhere in the mix. The same habit gives similar words on different days, not identical ones.
 - **The counters** are old BSD interface counters that iOS still exposes. If they ever read zero, the meter shows "—" and nothing is sung.
-- **App Store.** There's no VPN or network extension, so the App Store's VPN rule doesn't apply.
+- **App Store.** Leitmotif has no VPN or network extension, so the App Store's VPN rule doesn't apply. (Leitmotif Name does, which is why it stays personal.)
 
 ## Code map
 
-- `Leitmotif/Gait.swift`: the interface counters by link type, the burst detector, the six-letter gait alphabet, and the traffic log.
-- `Leitmotif/Meter.swift`: smoothed up and down rates, for dynamics and tape dust.
+Shared by both apps:
+
+- `Common/Piano.swift`, `MotifDSP.swift`, `MotifEngine.swift`: the dusty upright, the voices and tape, and the audio graph.
+- `Common/Counters.swift`, `Meter.swift`: the phone's link counters and the smoothed up/down rates.
+- `Duo/`: the shared duo link, identical to the Aether repo's `Shared/` copies.
+- `AppStore/make_icon.py`: both icons, periodic-table tiles matching Aether and Bellweathered.
+- `.github/workflows/build.yml`: compiles both apps, unsigned, on every push.
+
+Leitmotif:
+
+- `Leitmotif/Gait.swift`: the burst detector, the six-letter gait alphabet, and the traffic log.
 - `Leitmotif/Score.swift`: burst → word → motif, the burst/bulk/chatter voices, and the stable hash (FNV-1a plus SplitMix64).
 - `Leitmotif/LeitmotifModel.swift`: the conductor. Takes bursts, manages the backlog, schedules motifs and whispers onto the grid, and follows the duo.
-- `Leitmotif/Piano.swift`: the dusty upright, synthesized once at launch (moved here from Aether).
-- `Leitmotif/MotifDSP.swift`: plays the piano. Melody and whisper voices with dampers, tape wow, hiss and crackle, the brightness filter, and the lock-free note rings on the audio thread's beat clock.
-- `Leitmotif/MotifEngine.swift`: the AVAudioEngine graph (delay → hall). It mixes with other audio and keeps running in the background.
-- `Leitmotif/LeitmotifApp.swift`: main screen (voice orb, meters, the list of gait words with each motif drawn as a tiny piano roll) and settings.
-- `Duo/`: the shared duo link, identical to the Aether repo's `Shared/` copies.
-- `AppStore/make_icon.py`: the icon, a periodic-table tile matching the other two: Lm, element 121, mass [1500], the size of a full packet.
-- `.github/workflows/build.yml`: compiles the app, unsigned, on every push.
+- `Leitmotif/LeitmotifApp.swift`: main screen and settings.
+
+Leitmotif Name:
+
+- `LeitmotifNameTunnel/PacketTunnelProvider.swift`, `DNSPacket.swift`: the DNS-only tunnel, and just enough IPv4/UDP/DNS to read a question and wrap an answer.
+- `NameShared/Wire.swift`: messages between the app and its tunnel, and the resolver choices.
+- `LeitmotifName/Tunnel.swift`: installs, starts and polls the VPN profile.
+- `LeitmotifName/Score.swift`, `LeitmotifModel.swift`, `LeitmotifApp.swift`: domains → motifs, the conductor, and the screens.

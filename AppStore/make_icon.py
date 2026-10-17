@@ -1,6 +1,7 @@
 """Leitmotif's app icon: a periodic-table tile matching Aether (Ae 119) and Bellweathered (Bw 120).
 
-Usage: python3 AppStore/make_icon.py Leitmotif/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+Usage: python3 AppStore/make_icon.py Leitmotif/Assets.xcassets/AppIcon.appiconset/AppIcon.png \
+       LeitmotifName/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 (tile() and the font path are copied from samuelling/Aether's AppStore/make_icons.py.)
 """
 import numpy as np, colorsys, sys
@@ -73,4 +74,7 @@ def tile(bg, symbol, number, mass, name, glow_rgb, out):
 
 # 121, the next element after Bellweathered; mass [1500], the size of a full packet (the MTU).
 tile(motif_bg(), "Lm", "121", "[1500]", "Leitmotif", (255, 110, 170), sys.argv[1])
+# Leitmotif Name, the personal edition: 122, mass [53], the port every DNS lookup is asked on.
+if len(sys.argv) > 2:
+    tile(motif_bg(), "Ln", "122", "[53]", "Leitmotif Name", (255, 184, 92), sys.argv[2])
 print("ok")
